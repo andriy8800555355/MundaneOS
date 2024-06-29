@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neumorphic Wallpaper with Weather</title>
+    <style>
+        /* General Styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #2d2d2d;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            color: #e0e0e0;
+        }
+
+        .neumorphic-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 300px;
+            height: 300px;
+            background: #3d3d3d;
+            border-radius: 50%;
+            box-shadow: 20px 20px 60px #1a1a1a, -20px -20px 60px #575757;
+            position: relative;
+            transition: transform 0.2s ease;
+        }
+
+        .clock {
+            width: 150px;
+            height: 150px;
+            background: #3d3d3d;
+            border-radius: 50%;
+            box-shadow: inset 10px 10px 30px #1a1a1a, inset -10px -10px 30px #575757;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #time {
+            font-size: 2em;
+            color: #e0e0e0;
+        }
+
+        .rain {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.05);
+            pointer-events: none;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .drop {
+            position: absolute;
+            bottom: 100%;
+            width: 2px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            to {
+                transform: translateY(100vh);
+            }
+        }
+
+        .neumorphic-container:hover {
+            box-shadow: 20px 20px 60px #1a1a1a, -20px -20px 60px #575757, inset 10px 10px 30px #1a1a1a, inset -10px -10px 30px #575757;
+        }
+    </style>
+</head>
+<body>
+    <div class="neumorphic-container">
+        <div class="clock">
+            <div id="time"></div>
+        </div>
+    </div>
+    <div class="rain"></div>
+    <script>
+        // API key and URL
+        const apiKey = 'aeefb73ca7c138ccd84d4b4b6c17a629';
+        const apiUrl = `https://api.openweathermap.org/data/2.5/weather?q=Kyiv&appid=${apiKey}&units=metric`;
+
+        // Fetch weather data
+        fetch(apiUrl)
+            .then(response => response.json())
+            .then(data => {
+                console.log(data);
+                const weather = data.weather[0].main.toLowerCase();
+                const rainContainer = document.querySelector('.rain');
+
+                if (weather.includes('rain')) {
+                    createRain();
+                }
+            })
+            .catch(error => console.error('Error fetching weather data:', error));
+
+        // Clock
+        function updateTime() {
+            const timeElement = document.getElementById('time');
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            const seconds = String(now.getSeconds()).padStart(2, '0');
+            timeElement.textContent = `${hours}:${minutes}:${seconds}`;
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Rain Effect
+        function createRain() {
+            const rain = document.querySelector('.rain');
+            for (let i = 0; i < 100; i++) {
+                const drop = document.createElement('div');
+                drop.className = 'drop';
+                drop.style.left = `${Math.random() * 100}vw`;
+                drop.style.animationDuration = `${Math.random() * 2 + 3}s`;
+                drop.style.opacity = `${Math.random()}`;
+                rain.appendChild(drop);
+            }
+        }
+
+        // Mouse Interaction for entire screen
+        document.body.addEventListener('mousemove', (e) => {
+            const { innerWidth, innerHeight } = window;
+            const x = e.clientX - innerWidth / 2;
+            const y = e.clientY - innerHeight / 2;
+            document.querySelector('.neumorphic-container').style.transform = `translate(${x * 0.05}px, ${y * 0.05}px)`;
+        });
+
+        document.body.addEventListener('mouseleave', (e) => {
+            document.querySelector('.neumorphic-container').style.transform = 'translate(0, 0)';
+        });
+    </script>
+</body>
+</html>

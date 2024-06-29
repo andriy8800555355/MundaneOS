@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML IDE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap');
+        
+        body, html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            font-family: 'Fira Code', monospace;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        #editor {
+            display: flex;
+            height: 70%;
+            background-color: #252526;
+        }
+        #html, #css, #js {
+            width: 33.3%;
+            padding: 10px;
+            box-sizing: border-box;
+            border-right: 1px solid #3c3c3c;
+            height: 100%;
+        }
+        #html { background: #1e1e1e; }
+        #css { background: #1e1e1e; }
+        #js { background: #1e1e1e; }
+        #preview {
+            height: 30%;
+            border-top: 1px solid #3c3c3c;
+        }
+        #drag-bar {
+            width: 100%;
+            height: 10px;
+            background-color: #3c3c3c;
+            cursor: ns-resize;
+        }
+        textarea {
+            width: 100%;
+            height: 100%;
+            border: none;
+            resize: none;
+            font-family: 'Fira Code', monospace;
+            box-sizing: border-box;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            outline: none;
+        }
+        h3 {
+            margin: 0;
+            padding: 0 0 10px 0;
+            font-weight: 500;
+            color: #569cd6;
+            font-size: 16px;
+        }
+        .no-select {
+            user-select: none;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="editor">
+        <div id="html">
+            <h3>HTML</h3>
+            <textarea id="html-code"></textarea>
+        </div>
+        <div id="css">
+            <h3>CSS</h3>
+            <textarea id="css-code"></textarea>
+        </div>
+        <div id="js">
+            <h3>JavaScript</h3>
+            <textarea id="js-code"></textarea>
+        </div>
+    </div>
+    <div id="drag-bar"></div>
+    <iframe id="preview"></iframe>
+
+    <script>
+        function updatePreview() {
+            const htmlCode = document.getElementById('html-code').value;
+            const cssCode = document.getElementById('css-code').value;
+            const jsCode = document.getElementById('js-code').value;
+
+            const previewFrame = document.getElementById('preview');
+            const previewDocument = previewFrame.contentDocument || previewFrame.contentWindow.document;
+            previewDocument.open();
+            previewDocument.write(`
+                <style>${cssCode}</style>
+                ${htmlCode}
+                <script>${jsCode}<\/script>
+            `);
+            previewDocument.close();
+        }
+
+        document.getElementById('html-code').addEventListener('input', updatePreview);
+        document.getElementById('css-code').addEventListener('input', updatePreview);
+        document.getElementById('js-code').addEventListener('input', updatePreview);
+
+        // Drag bar functionality
+        const dragBar = document.getElementById('drag-bar');
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+
+        let isDragging = false;
+
+        dragBar.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            document.body.classList.add('no-select');
+        });
+
+        document.addEventListener('mousemove', function(e) {
+            if (!isDragging) return;
+            const editorHeight = e.clientY / window.innerHeight * 100;
+            const previewHeight = 100 - editorHeight;
+            editor.style.height = editorHeight + '%';
+            preview.style.height = previewHeight + '%';
+        });
+
+        document.addEventListener('mouseup', function() {
+            isDragging = false;
+            document.body.classList.remove('no-select');
+        });
+    </script>
+</body>
+</html>

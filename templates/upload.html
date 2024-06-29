@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload Music</title>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #e0e0e0;
+        }
+
+        .upload-container {
+            background: #2c2c2c;
+            border-radius: 20px;
+            box-shadow: 20px 20px 60px #171717, -20px -20px 60px #353535;
+            padding: 30px;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            box-sizing: border-box;
+        }
+
+        .upload-container h1 {
+            color: #e0e0e0;
+            margin-bottom: 20px;
+        }
+
+        .upload-container input[type="file"] {
+            display: block;
+            margin: 20px auto;
+            color: #e0e0e0;
+        }
+
+        .neumorphic-button {
+            background: #2c2c2c;
+            border-radius: 20px;
+            padding: 15px 30px;
+            border: none;
+            box-shadow: 6px 6px 12px #171717, -6px -6px 12px #353535;
+            color: #e0e0e0;
+            font-size: 16px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .neumorphic-button:hover {
+            box-shadow: 4px 4px 8px #171717, -4px -4px 8px #353535;
+        }
+
+        .neumorphic-button:active {
+            box-shadow: inset 6px 6px 12px #171717, inset -6px -6px 12px #353535;
+            transform: scale(0.95);
+        }
+
+        @media (max-width: 600px) {
+            .upload-container {
+                width: 100%;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="upload-container">
+        <h1>Upload Music</h1>
+        <form method="post" enctype="multipart/form-data" onsubmit="return validateForm()">
+            <input type="file" name="file" accept=".mp3, .wav, .ogg, .m4a" aria-label="Choose a music file">
+            <button type="submit" class="neumorphic-button">Upload</button>
+        </form>
+    </div>
+
+    <script>
+        function validateForm() {
+            const fileInput = document.querySelector('input[type="file"]');
+            if (!fileInput.value) {
+                alert('Please select a file to upload.');
+                return false;
+            }
+            return true;
+        }
+    </script>
+</body>
+</html>

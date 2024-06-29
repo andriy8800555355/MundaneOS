@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Improved 3D Game Engine</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+    #uiPanel, #objectListPanel, #infoPanel {
+      position: absolute;
+      background: rgba(255, 255, 255, 0.8);
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 100;
+    }
+    #uiPanel {
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #uiPanel button {
+      margin: 5px;
+      padding: 10px;
+    }
+    #objectListPanel {
+      top: 10px;
+      left: 10px;
+      max-height: 90%;
+      overflow-y: auto;
+    }
+    #objectListPanel ul {
+      list-style-type: none;
+      padding: 0;
+    }
+    #objectListPanel li {
+      padding: 5px;
+      cursor: pointer;
+    }
+    #objectListPanel li:hover {
+      background: rgba(0, 0, 0, 0.1);
+    }
+    #infoPanel {
+      top: 10px;
+      right: 10px;
+    }
+    #infoPanel input[type="color"] {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <div id="uiPanel">
+    <button onclick="spawnObject('cube')">Spawn Cube</button>
+    <button onclick="spawnObject('sphere')">Spawn Sphere</button>
+    <button onclick="spawnObject('cone')">Spawn Cone</button>
+    <br>
+    <input type="file" id="fileInput" accept=".obj" style="display: none;" />
+    <button onclick="document.getElementById('fileInput').click()">Load OBJ</button>
+    <button onclick="spawnLight()">Spawn Light</button>
+    <br>
+    <button onclick="transformObject('rotate')">Rotate</button>
+    <button onclick="transformObject('translate')">Move</button>
+    <button onclick="transformObject('scale')">Scale</button>
+    <br>
+    <button onclick="runPhysics()">Run Physics</button>
+  </div>
+
+  <div id="objectListPanel">
+    <h3>Objects</h3>
+    <ul id="objectList"></ul>
+  </div>
+
+  <div id="infoPanel">
+    <h3>Object Info</h3>
+    <p id="objectInfo">No object selected</p>
+    <input type="color" id="colorPicker" value="#ffffff" />
+    <br>
+    <label><input type="checkbox" id="usePhysics" onchange="togglePhysics()"> Use Physics</label>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.skypack.dev/three@0.128.0';
+    import { OBJLoader } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/loaders/OBJLoader.js';
+    import { OrbitControls } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/controls/OrbitControls.js';
+    import { TransformControls } from 'https://cdn.skypack.dev/three@0.128.0/examples/jsm/controls/TransformControls.js';
+    import * as CANNON from 'https://cdn.skypack.dev/cannon-es';
+
+    class GameEngine {
+      constructor() {
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.orbitControls = null;
+        this.transformControl = null;
+        this.objects = [];
+        this.selectedObject = null;
+        this.world = null;
+        this.objectShapes = new Map([
+          ['cube', new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5))],
+          ['sphere', new CANNON.Sphere(0.5)],
+          ['cone', new CANNON.Cylinder(0, 0.5, 1, 16)] // Approximating a cone with a cylinder
+        ]);
+
+        this.init();
+      }
+
+      init() {
+        try {
+          this.setupScene();
+          this.setupCamera();
+          this.setupRenderer();
+          this.setupLight();
+          this.setupControls();
+          this.setupPhysics();
+          this.setupEventListeners();
+          this.setupDOMEventListeners();
+          this.animate();
+        } catch (error) {
+          console.error("Initialization error:", error);
+        }
+      }
+
+      setupScene() {
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x3a5e8c);
+      }
+
+      setupCamera() {
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        this.camera.position.set(5, 5, 5);
+        this.camera.lookAt(0, 0, 0);
+      }
+
+      setupRenderer() {
+        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.shadowMap.enabled = true;
+        document.body.appendChild(this.renderer.domElement);
+      }
+
+      setupLight() {
+        this.directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        this.directionalLight.position.set(5, 5, 5);
+        this.directionalLight.castShadow = true;
+        this.scene.add(this.directionalLight);
+
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        this.scene.add(ambientLight);
+      }
+
+      setupControls() {
+        this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.orbitControls.enableDamping = true;
+        this.orbitControls.dampingFactor = 0.25;
+
+        this.transformControl = new TransformControls(this.camera, this.renderer.domElement);
+        this.scene.add(this.transformControl);
+
+        this.transformControl.addEventListener('change', () => this.render());
+        this.transformControl.addEventListener('dragging-changed', (event) => {
+          this.orbitControls.enabled = !event.value;
+        });
+      }
+
+      setupPhysics() {
+        this.world = new CANNON.World();
+        this.world.gravity.set(0, -9.82, 0);
+        this.world.broadphase = new CANNON.NaiveBroadphase();
+        this.world.solver.iterations = 10;
+      }
+
+      setupEventListeners() {
+        window.addEventListener('resize', () => this.onWindowResize(), false);
+      }
+
+      setupDOMEventListeners() {
+        const colorPicker = document.getElementById('colorPicker');
+        const fileInput = document.getElementById('fileInput');
+
+        if (colorPicker) {
+          colorPicker.addEventListener('input', (event) => this.onColorChange(event));
+        }
+
+        if (fileInput) {
+          fileInput.addEventListener('change', (event) => this.onFileInput(event));
+        }
+      }
+
+      onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.render();
+      }
+
+      onColorChange(event) {
+        if (this.selectedObject && this.selectedObject.material) {
+          this.selectedObject.material.color.set(event.target.value);
+          this.render();
+        }
+      }
+
+      onFileInput(event) {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => this.loadObject(e.target.result);
+          reader.readAsText(file);
+        }
+      }
+
+      loadObject(data) {
+        const loader = new OBJLoader();
+        const object = loader.parse(data);
+        object.name = `CustomObject ${this.objects.length + 1}`;
+
+        object.traverse((child) => {
+          if (child.isMesh) {
+            child.castShadow = true;
+            child.receiveShadow = true;
+          }
+        });
+
+        // Center the object
+        const box = new THREE.Box3().setFromObject(object);
+        const center = box.getCenter(new THREE.Vector3());
+        object.position.sub(center);
+
+        // Add the object to the scene
+        this.scene.add(object);
+        this.objects.push({ mesh: object, usePhysics: false });
+        this.updateObjectList();
+      }
+
+      spawnObject(type) {
+        let geometry, material;
+        switch (type) {
+          case 'cube':
+            geometry = new THREE.BoxGeometry(1, 1, 1);
+            material = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+            break;
+          case 'sphere':
+            geometry = new THREE.SphereGeometry(0.5, 32, 32);
+            material = new THREE.MeshLambertMaterial({ color: 0x0000ff });
+            break;
+          case 'cone':
+            geometry = new THREE.ConeGeometry(0.5, 1, 32);
+            material = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+            break;
+        }
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.name = `${type.charAt(0).toUpperCase() + type.slice(1)} ${this.objects.length + 1}`;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        this.scene.add(mesh);
+        this.objects.push({ mesh, usePhysics: false });
+        this.updateObjectList();
+      }
+
+      spawnLight() {
+        const light = new THREE.PointLight(0xffffff, 1, 100);
+        light.position.set(5, 5, 5);
+        light.name = `Light ${this.objects.length + 1}`;
+        light.castShadow = true;
+        this.scene.add(light);
+        this.objects.push({ mesh: light, usePhysics: false });
+        this.updateObjectList();
+      }
+
+      updateObjectList() {
+        const objectList = document.getElementById('objectList');
+        objectList.innerHTML = '';
+        this.objects.forEach((obj, index) => {
+          const li = document.createElement('li');
+          li.textContent = obj.mesh.name;
+          li.onclick = () => this.selectObject(index);
+          objectList.appendChild(li);
+        });
+      }
+
+      selectObject(index) {
+        this.selectedObject = this.objects[index].mesh;
+        this.transformControl.attach(this.selectedObject);
+        this.updateObjectInfo();
+      }
+
+      updateObjectInfo() {
+        if (this.selectedObject) {
+          const pos = this.selectedObject.position;
+          const rot = this.selectedObject.rotation;
+          const scale = this.selectedObject.scale;
+          const infoText = `Name: ${this.selectedObject.name}
+Position: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)})
+Rotation: (${rot.x.toFixed(2)}, ${rot.y.toFixed(2)}, ${rot.z.toFixed(2)})
+Scale: (${scale.x.toFixed(2)}, ${scale.y.toFixed(2)}, ${scale.z.toFixed(2)})`;
+          document.getElementById('objectInfo').textContent = infoText;
+        } else {
+          document.getElementById('objectInfo').textContent = 'No object selected';
+        }
+      }
+
+      transformObject(mode) {
+        if (this.selectedObject) {
+          this.transformControl.setMode(mode);
+
+          // If the selected object is a group (like a loaded OBJ), 
+          // attach the transform control to its first child that is a mesh
+          if (this.selectedObject.type === 'Group') {
+            const mesh = this.selectedObject.children.find(child => child.isMesh);
+            if (mesh) {
+              this.transformControl.attach(mesh);
+            }
+          } else {
+            this.transformControl.attach(this.selectedObject);
+          }
+        }
+      }
+
+      togglePhysics() {
+        if (this.selectedObject) {
+          const obj = this.objects.find(o => o.mesh === this.selectedObject);
+          obj.usePhysics = document.getElementById('usePhysics').checked;
+
+          if (obj.usePhysics && !obj.body) {
+            let shape;
+            if (obj.mesh.type === 'Group') {
+              // For custom objects, use a compound shape
+              shape = this.createCompoundShape(obj.mesh);
+            } else {
+              shape = this.objectShapes.get(obj.mesh.geometry.type) || new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+            }
+
+            const body = new CANNON.Body({ mass: 1 });
+            body.addShape(shape);
+            body.position.copy(obj.mesh.position);
+            body.quaternion.copy(obj.mesh.quaternion);
+            obj.body = body;
+            this.world.addBody(body);
+
+            // Add collision event listener
+            body.addEventListener('collide', (event) => {
+              console.log(`Collided with ${event.body}`);
+              // Handle collision response here
+            });
+          } else if (!obj.usePhysics && obj.body) {
+            this.world.removeBody(obj.body);
+            obj.body = null;
+          }
+        }
+      }
+
+      createCompoundShape(object) {
+        const compound = new CANNON.Compound();
+        object.traverse((child) => {
+          if (child.isMesh) {
+            const shape = new CANNON.Box(new CANNON.Vec3().copy(child.scale).scale(0.5));
+            compound.addChild(shape, new CANNON.Vec3().copy(child.position));
+          }
+        });
+        return compound;
+      }
+
+      runPhysics() {
+        const timeStep = 1 / 60;
+        this.world.step(timeStep);
+
+        this.objects.forEach(obj => {
+          if (obj.usePhysics && obj.body) {
+            obj.mesh.position.copy(obj.body.position);
+            obj.mesh.quaternion.copy(obj.body.quaternion);
+          }
+        });
+      }
+
+      animate() {
+        requestAnimationFrame(() => this.animate());
+        this.runPhysics();
+        this.render();
+      }
+
+      render() {
+        this.renderer.render(this.scene, this.camera);
+      }
+    }
+
+    // Initialize the game engine after the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', () => {
+      const engine = new GameEngine();
+      engine.setupDOMEventListeners();
+
+      // Expose functions to the global scope
+      window.spawnObject = (type) => engine.spawnObject(type);
+      window.spawnLight = () => engine.spawnLight();
+      window.transformObject = (mode) => engine.transformObject(mode);
+      window.togglePhysics = () => engine.togglePhysics();
+      window.runPhysics = () => engine.runPhysics();
+    });
+  </script>
+</body>
+</html>

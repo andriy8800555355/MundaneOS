@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neumorphism Radio</title>
+    <style>
+        body {
+            background-color: #1e1e1e;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            color: #e0e0e0;
+        }
+
+        .radio-container {
+            background: #2c2c2c;
+            border-radius: 20px;
+            box-shadow: 20px 20px 60px #171717, -20px -20px 60px #353535;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .radio-container h1 {
+            color: #e0e0e0;
+        }
+
+        .radio-container button {
+            background: #2c2c2c;
+            border: none;
+            border-radius: 50%;
+            box-shadow: 6px 6px 12px #171717, -6px -6px 12px #353535;
+            width: 80px;
+            height: 80px;
+            margin: 20px;
+            cursor: pointer;
+            outline: none;
+            color: #e0e0e0;
+        }
+
+        .radio-container button:active {
+            box-shadow: inset 6px 6px 12px #171717, inset -6px -6px 12px #353535;
+        }
+
+        canvas {
+            width: 100%;
+            height: 200px;
+            background: #1e1e1e;
+            border-radius: 10px;
+            box-shadow: 10px 10px 30px #171717, -10px -10px 30px #353535;
+            margin-top: 20px;
+        }
+
+        .upload-link {
+            display: block;
+            margin-top: 20px;
+            color: #e0e0e0;
+            text-decoration: none;
+            font-size: 16px;
+        }
+
+        .upload-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="radio-container">
+        <h1>Radio</h1>
+        <audio id="audio" controls style="display: none;">
+            <source id="audioSource" src="" type="audio/mpeg">
+            Your browser does not support the audio element.
+        </audio>
+        <div id="buttonsContainer"></div>
+        <canvas id="visualizer"></canvas>
+        <a class="upload-link" href="/upload">Upload your own music</a>
+        <button id="randomVisualizerButton">Random Visualizer</button>
+        <button id="pauseResumeButton">Pause</button>
+    </div>
+
+    <script>
+        async function fetchMusicList() {
+            const response = await fetch('/music-list');
+            const musicList = await response.json();
+            const buttonsContainer = document.getElementById('buttonsContainer');
+            musicList.forEach((song, index) => {
+                const button = document.createElement('button');
+                button.textContent = `Play ${index + 1}`;
+                button.onclick = () => playMusic(song);
+                buttonsContainer.appendChild(button);
+            });
+        }
+
+        let isPlaying = false;
+        let audioElement = document.getElementById('audio');
+
+        function playMusic(song) {
+            const audio = audioElement;
+            const source = document.getElementById('audioSource');
+            source.src = `/play/${song}`;
+            audio.load();
+            audio.play();
+            visualize();
+            isPlaying = true;
+            updatePauseResumeButton();
+        }
+
+        function pauseMusic() {
+            if (isPlaying) {
+                audioElement.pause();
+                isPlaying = false;
+                updatePauseResumeButton();
+            }
+        }
+
+        function resumeMusic() {
+            if (!isPlaying) {
+                audioElement.play();
+                isPlaying = true;
+                updatePauseResumeButton();
+            }
+        }
+
+        function updatePauseResumeButton() {
+            const button = document.getElementById('pauseResumeButton');
+            if (isPlaying) {
+                button.textContent = 'Pause';
+            } else {
+                button.textContent = 'Resume';
+            }
+        }
+
+        function visualize() {
+            const audio = document.getElementById('audio');
+            const canvas = document.getElementById('visualizer');
+            const canvasCtx = canvas.getContext('2d');
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioCtx.createAnalyser();
+            const source = audioCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+            analyser.fftSize = 256;
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            const visualizers = [drawBars, drawCircles, drawWaves];
+            let currentVisualizer = null;
+
+            function drawBars() {
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                function draw() {
+                    requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+                    canvasCtx.fillStyle = '#1e1e1e';
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    const barWidth = (canvas.width / bufferLength) * 2.5;
+                    let barHeight;
+                    let x = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        barHeight = dataArray[i];
+                        canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                        canvasCtx.fillRect(x, canvas.height - barHeight / 2, barWidth, barHeight / 2);
+                        x += barWidth + 1;
+                    }
+                }
+                currentVisualizer = draw;
+                draw();
+            }
+
+            function drawCircles() {
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                function draw() {
+                    requestAnimationFrame(draw);
+                    analyser.getByteFrequencyData(dataArray);
+                    canvasCtx.fillStyle = '#1e1e1e';
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    const radius = Math.min(canvas.width, canvas.height) / 4;
+                    for (let i = 0; i < bufferLength; i++) {
+                        const barHeight = dataArray[i] / 2;
+                        const angle = (i / bufferLength) * 2 * Math.PI;
+                        const x = centerX + Math.cos(angle) * (radius + barHeight);
+                        const y = centerY + Math.sin(angle) * (radius + barHeight);
+                        canvasCtx.beginPath();
+                        canvasCtx.arc(x, y, 2, 0, 2 * Math.PI);
+                        canvasCtx.fillStyle = `rgb(${barHeight + 100}, 50, 50)`;
+                        canvasCtx.fill();
+                    }
+                }
+                currentVisualizer = draw;
+                draw();
+            }
+
+            function drawWaves() {
+                canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+                function draw() {
+                    requestAnimationFrame(draw);
+                    analyser.getByteTimeDomainData(dataArray);
+                    canvasCtx.fillStyle = '#1e1e1e';
+                    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+                    canvasCtx.lineWidth = 2;
+                    canvasCtx.strokeStyle = 'rgb(255, 0, 0)';
+                    canvasCtx.beginPath();
+                    const sliceWidth = canvas.width / bufferLength;
+                    let x = 0;
+                    for (let i = 0; i < bufferLength; i++) {
+                        const v = dataArray[i] / 128.0;
+                        const y = v * canvas.height / 2;
+                        if (i === 0) {
+                            canvasCtx.moveTo(x, y);
+                        } else {
+                            canvasCtx.lineTo(x, y);
+                        }
+                        x += sliceWidth;
+                    }
+                    canvasCtx.lineTo(canvas.width, canvas.height / 2);
+                    canvasCtx.stroke();
+                }
+                currentVisualizer = draw;
+                draw();
+            }
+
+            function randomVisualizer() {
+                // Stop the current visualizer
+                if (currentVisualizer) {
+                    cancelAnimationFrame(currentVisualizer);
+                }
+
+                // Select a random visualizer
+                const randomIndex = Math.floor(Math.random() * visualizers.length);
+                const selectedVisualizer = visualizers[randomIndex];
+                selectedVisualizer();
+            }
+
+            randomVisualizer();
+
+            // Event listener for the random visualizer button
+            const randomVisualizerButton = document.getElementById('randomVisualizerButton');
+            randomVisualizerButton.addEventListener('click', randomVisualizer);
+
+            // Event listener for the pause/resume button
+            const pauseResumeButton = document.getElementById('pauseResumeButton');
+            pauseResumeButton.addEventListener('click', () => {
+                if (isPlaying) {
+                    pauseMusic();
+                } else {
+                    resumeMusic();
+                }
+            });
+        }
+
+        window.onload = fetchMusicList;
+    </script>
+</body>
+</html>

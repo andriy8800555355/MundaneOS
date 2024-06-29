@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neon Logo</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #000428, #004e92);
+            overflow: hidden;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+        }
+
+        .neon-text {
+            font-size: 5em;
+            color: #fff;
+            text-shadow: 0 0 5px #f0f, 0 0 10px #f0f, 0 0 20px #f0f, 
+                         0 0 40px #f0f, 0 0 80px #f0f, 0 0 120px #f0f;
+            animation: flicker 1.5s infinite alternate;
+        }
+
+        @keyframes flicker {
+            0% {
+                opacity: 1;
+                text-shadow: 0 0 5px #f0f, 0 0 10px #f0f, 0 0 20px #f0f, 
+                             0 0 40px #f0f, 0 0 80px #f0f, 0 0 120px #f0f;
+            }
+            50% {
+                opacity: 0.8;
+                text-shadow: 0 0 5px #f0f, 0 0 10px #f0f, 0 0 15px #f0f, 
+                             0 0 30px #f0f, 0 0 60px #f0f, 0 0 90px #f0f;
+            }
+            100% {
+                opacity: 1;
+                text-shadow: 0 0 5px #f0f, 0 0 10px #f0f, 0 0 20px #f0f, 
+                             0 0 40px #f0f, 0 0 80px #f0f, 0 0 120px #f0f;
+            }
+        }
+
+        .stars {
+            position: absolute;
+            width: 100%;
+            height: 200%; /* Double the height for seamless scrolling */
+            background: transparent;
+            background: transparent url('https://www.transparenttextures.com/patterns/stardust.png') repeat;
+            z-index: -1;
+            overflow: hidden;
+            animation: star-animation 50s linear infinite;
+        }
+
+        @keyframes star-animation {
+            from {
+                transform: translateY(0);
+            }
+            to {
+                transform: translateY(-50%);
+            }
+        }
+
+        .stars2 {
+            position: absolute;
+            width: 100%;
+            height: 200%; /* Double the height for seamless scrolling */
+            background: transparent;
+            background: transparent url('https://www.transparenttextures.com/patterns/stardust.png') repeat;
+            z-index: -2;
+            overflow: hidden;
+            animation: star-animation2 100s linear infinite;
+            opacity: 0.5;
+        }
+
+        @keyframes star-animation2 {
+            from {
+                transform: translateY(0);
+            }
+            to {
+                transform: translateY(-50%);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="stars"></div>
+    <div class="stars stars2"></div>
+    <div class="neon-text">ModuBot</div>
+</body>
+</html>

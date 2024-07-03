@@ -1,5 +1,6 @@
 from flask import Flask, render_template, jsonify, request, redirect, url_for, send_from_directory
 import os
+import psutil
 
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = os.path.join(app.static_folder, 'music')
@@ -61,6 +62,18 @@ def upload_file():
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             return redirect(url_for('radio'))
     return render_template('upload.html')
+    
+@app.route('/system_info', methods=['GET'])
+def system_info():
+    cpu_percent = psutil.cpu_percent(interval=1)
+    memory = psutil.virtual_memory()
+    memory_used = memory.used / (1024 ** 3)  # in GB
+    memory_total = memory.total / (1024 ** 3)  # in GB
+    return jsonify({
+        'cpu_percent': cpu_percent,
+        'memory_used': memory_used,
+        'memory_total': memory_total
+    })
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0')

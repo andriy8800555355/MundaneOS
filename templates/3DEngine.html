@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unity-like 3D Engine</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      user-select: none;
+    }
+    #gameView {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #uiPanel, #hierarchyPanel, #inspectorPanel {
+      position: absolute;
+      background: rgba(40, 40, 40, 0.9);
+      color: #fff;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 100;
+    }
+    #uiPanel {
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+    #uiPanel button {
+      margin: 5px;
+      padding: 10px;
+      background: #4CAF50;
+      border: none;
+      color: white;
+      cursor: pointer;
+    }
+    #hierarchyPanel {
+      top: 10px;
+      left: 10px;
+      width: 200px;
+      height: calc(100% - 80px);
+      overflow-y: auto;
+    }
+    #hierarchyPanel ul {
+      list-style-type: none;
+      padding: 0;
+      margin: 0;
+    }
+    #hierarchyPanel li {
+      padding: 5px;
+      cursor: pointer;
+    }
+    #hierarchyPanel li:hover {
+      background: rgba(255, 255, 255, 0.1);
+    }
+    #inspectorPanel {
+      top: 10px;
+      right: 10px;
+      width: 250px;
+      height: calc(100% - 80px);
+      overflow-y: auto;
+    }
+    #inspectorPanel input[type="number"], #inspectorPanel input[type="color"] {
+      width: 100%;
+      margin-bottom: 5px;
+    }
+    .component {
+      background: rgba(60, 60, 60, 0.9);
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 5px;
+    }
+    #controlsInfo {
+      position: absolute;
+      bottom: 10px;
+      left: 10px;
+      background: rgba(40, 40, 40, 0.9);
+      color: #fff;
+      padding: 10px;
+      border-radius: 5px;
+      z-index: 100;
+    }
+  </style>
+</head>
+<body>
+  <div id="gameView"></div>
+
+  <div id="uiPanel">
+    <button onclick="engine.spawnObject('cube')">Add Cube</button>
+    <button onclick="engine.spawnObject('sphere')">Add Sphere</button>
+    <button onclick="engine.spawnObject('cylinder')">Add Cylinder</button>
+    <button onclick="engine.spawnLight()">Add Light</button>
+    <input type="file" id="fileInput" accept=".obj" style="display: none;" />
+    <button onclick="document.getElementById('fileInput').click()">Load OBJ</button>
+  </div>
+
+  <div id="hierarchyPanel">
+    <h3>Hierarchy</h3>
+    <ul id="sceneHierarchy"></ul>
+  </div>
+
+  <div id="inspectorPanel">
+    <h3>Inspector</h3>
+    <div id="componentContainer"></div>
+  </div>
+
+  <div id="controlsInfo">
+    <h4>Controls:</h4>
+    <p>WASD - Move camera</p>
+    <p>Right Mouse Button - Rotate camera</p>
+    <p>Shift - Move faster</p>
+    <p>Space - Move up</p>
+    <p>Ctrl - Move down</p>
+    <p>Q - Switch to orbit controls</p>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'https://cdn.skypack.dev/three@0.132.2';
+    import { OrbitControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/OrbitControls.js';
+    import { TransformControls } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/controls/TransformControls.js';
+    import { OBJLoader } from 'https://cdn.skypack.dev/three@0.132.2/examples/jsm/loaders/OBJLoader.js';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      class UnityLikeEngine {
+        constructor() {
+          this.scene = new THREE.Scene();
+          this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+          this.renderer = new THREE.WebGLRenderer({ antialias: true });
+          this.orbitControls = null;
+          this.transformControls = null;
+          this.objects = [];
+          this.selectedObject = null;
+          this.clock = new THREE.Clock();
+          this.moveSpeed = 10;
+          this.mouseSensitivity = 0.002;
+          this.moveForward = false;
+          this.moveBackward = false;
+          this.moveLeft = false;
+          this.moveRight = false;
+          this.moveUp = false;
+          this.moveDown = false;
+          this.rotateCamera = false;
+          this.useOrbitControls = false;
+
+          this.cameraRotation = new THREE.Vector2(0, 0); // Store the camera's yaw and pitch
+          this.smoothness = 0.1; // The smoothness factor for interpolation
+
+          this.init();
+        }
+
+        init() {
+          this.setupRenderer();
+          this.setupCamera();
+          this.setupLights();
+          this.setupControls();
+          this.setupEventListeners();
+          this.animate();
+        }
+
+        setupRenderer() {
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+          this.renderer.shadowMap.enabled = true;
+          document.getElementById('gameView').appendChild(this.renderer.domElement);
+        }
+
+        setupCamera() {
+          this.camera.position.set(5, 5, 5);
+          this.camera.lookAt(0, 0, 0);
+        }
+
+        setupLights() {
+          const ambientLight = new THREE.AmbientLight(0x404040);
+          this.scene.add(ambientLight);
+
+          const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+          directionalLight.position.set(5, 5, 5);
+          directionalLight.castShadow = true;
+          this.scene.add(directionalLight);
+        }
+
+        setupControls() {
+          this.orbitControls = new OrbitControls(this.camera, this.renderer.domElement);
+          this.orbitControls.enableDamping = true;
+          this.orbitControls.dampingFactor = 0.25;
+          this.orbitControls.enabled = false;
+
+          this.transformControls = new TransformControls(this.camera, this.renderer.domElement);
+          this.scene.add(this.transformControls);
+
+          this.transformControls.addEventListener('dragging-changed', (event) => {
+            this.orbitControls.enabled = !event.value && this.useOrbitControls;
+          });
+        }
+
+        setupEventListeners() {
+          window.addEventListener('resize', () => this.onWindowResize(), false);
+          document.getElementById('fileInput').addEventListener('change', (event) => this.onFileInput(event));
+          document.addEventListener('keydown', (event) => this.onKeyDown(event));
+          document.addEventListener('keyup', (event) => this.onKeyUp(event));
+          this.renderer.domElement.addEventListener('mousedown', (event) => this.onMouseDown(event));
+          this.renderer.domElement.addEventListener('mouseup', (event) => this.onMouseUp(event));
+          this.renderer.domElement.addEventListener('mousemove', (event) => this.onMouseMove(event));
+          document.addEventListener('pointerlockchange', () => this.onPointerLockChange());
+        }
+
+        onWindowResize() {
+          this.camera.aspect = window.innerWidth / window.innerHeight;
+          this.camera.updateProjectionMatrix();
+          this.renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        onFileInput(event) {
+          const file = event.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => this.loadOBJ(e.target.result);
+            reader.readAsText(file);
+          }
+        }
+
+        onKeyDown(event) {
+          switch (event.code) {
+            case 'KeyW': this.moveForward = true; break;
+            case 'KeyS': this.moveBackward = true; break;
+            case 'KeyA': this.moveLeft = true; break;
+            case 'KeyD': this.moveRight = true; break;
+            case 'Space': this.moveUp = true; break;
+            case 'ControlLeft': this.moveDown = true; break;
+            case 'ShiftLeft': this.moveSpeed = 30; break;
+            case 'KeyQ': this.toggleControls(); break;
+          }
+        }
+
+        onKeyUp(event) {
+          switch (event.code) {
+            case 'KeyW': this.moveForward = false; break;
+            case 'KeyS': this.moveBackward = false; break;
+            case 'KeyA': this.moveLeft = false; break;
+            case 'KeyD': this.moveRight = false; break;
+            case 'Space': this.moveUp = false; break;
+            case 'ControlLeft': this.moveDown = false; break;
+            case 'ShiftLeft': this.moveSpeed = 10; break;
+          }
+        }
+
+        onMouseDown(event) {
+          if (event.button === 2) {
+            this.renderer.domElement.requestPointerLock();
+            this.rotateCamera = true;
+          }
+        }
+
+        onMouseUp(event) {
+          if (event.button === 2) {
+            document.exitPointerLock();
+            this.rotateCamera = false;
+          }
+        }
+
+        onMouseMove(event) {
+          if (this.rotateCamera) {
+            this.cameraRotation.x -= event.movementX * this.mouseSensitivity;
+            this.cameraRotation.y -= event.movementY * this.mouseSensitivity;
+            this.cameraRotation.y = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.cameraRotation.y));
+          }
+        }
+
+        onPointerLockChange() {
+          this.rotateCamera = document.pointerLockElement === this.renderer.domElement;
+        }
+
+        toggleControls() {
+          this.useOrbitControls = !this.useOrbitControls;
+          this.orbitControls.enabled = this.useOrbitControls;
+        }
+
+        loadOBJ(data) {
+          const loader = new OBJLoader();
+          const object = loader.parse(data);
+          object.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              child.castShadow = true;
+              child.receiveShadow = true;
+            }
+          });
+          this.scene.add(object);
+          this.objects.push(object);
+          this.updateHierarchy();
+        }
+
+        spawnObject(type) {
+          let geometry;
+          switch (type) {
+            case 'cube': geometry = new THREE.BoxGeometry(); break;
+            case 'sphere': geometry = new THREE.SphereGeometry(); break;
+            case 'cylinder': geometry = new THREE.CylinderGeometry(); break;
+          }
+          const material = new THREE.MeshStandardMaterial({ color: Math.random() * 0xffffff });
+          const object = new THREE.Mesh(geometry, material);
+          object.position.set(0, 0, 0);
+          object.castShadow = true;
+          object.receiveShadow = true;
+          this.scene.add(object);
+          this.objects.push(object);
+          this.updateHierarchy();
+        }
+
+        spawnLight() {
+          const light = new THREE.PointLight(0xffffff, 1, 100);
+          light.position.set(5, 5, 5);
+          this.scene.add(light);
+          this.objects.push(light);
+          this.updateHierarchy();
+        }
+
+        updateHierarchy() {
+          const hierarchy = document.getElementById('sceneHierarchy');
+          hierarchy.innerHTML = '';
+          this.objects.forEach((obj, index) => {
+            const li = document.createElement('li');
+            li.textContent = `Object ${index}`;
+            li.onclick = () => this.selectObject(obj);
+            hierarchy.appendChild(li);
+          });
+        }
+
+        selectObject(object) {
+          this.selectedObject = object;
+          this.transformControls.attach(object);
+          this.updateInspector();
+        }
+
+        updateInspector() {
+          const container = document.getElementById('componentContainer');
+          container.innerHTML = '';
+          if (this.selectedObject) {
+            const position = this.selectedObject.position;
+            const positionDiv = document.createElement('div');
+            positionDiv.className = 'component';
+            positionDiv.innerHTML = `
+              <h4>Position</h4>
+              <label>X: <input type="number" step="0.1" value="${position.x}" /></label>
+              <label>Y: <input type="number" step="0.1" value="${position.y}" /></label>
+              <label>Z: <input type="number" step="0.1" value="${position.z}" /></label>
+            `;
+            container.appendChild(positionDiv);
+          }
+        }
+
+        animate() {
+          requestAnimationFrame(() => this.animate());
+
+          const delta = this.clock.getDelta();
+
+          // Smooth camera rotation interpolation
+          const targetRotation = new THREE.Quaternion().setFromEuler(new THREE.Euler(this.cameraRotation.y, this.cameraRotation.x, 0));
+          this.camera.quaternion.slerp(targetRotation, this.smoothness);
+
+          if (!this.useOrbitControls) {
+            if (this.moveForward) this.camera.translateZ(-this.moveSpeed * delta);
+            if (this.moveBackward) this.camera.translateZ(this.moveSpeed * delta);
+            if (this.moveLeft) this.camera.translateX(-this.moveSpeed * delta);
+            if (this.moveRight) this.camera.translateX(this.moveSpeed * delta);
+            if (this.moveUp) this.camera.translateY(this.moveSpeed * delta);
+            if (this.moveDown) this.camera.translateY(-this.moveSpeed * delta);
+          }
+
+          this.orbitControls.update();
+          this.renderer.render(this.scene, this.camera);
+        }
+      }
+
+      const engine = new UnityLikeEngine();
+    });
+  </script>
+</body>
+</html>

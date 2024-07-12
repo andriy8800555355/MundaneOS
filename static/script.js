@@ -2,6 +2,7 @@
 const WINDOW_MIN_WIDTH = 200;
 const WINDOW_MIN_HEIGHT = 150;
 const CLOCK_UPDATE_INTERVAL = 1000;
+const SYSTEM_INFO_UPDATE_INTERVAL = 5000;
 
 // State
 let windowCount = 1;
@@ -17,22 +18,28 @@ function initializeApp() {
     fetchAndPopulatePrograms();
     initializeClock();
     loadSettings();
+    initializeSystemInfo();
 }
 
 // Fetch and populate programs
-function fetchAndPopulatePrograms() {
-    fetch('/api/programs')
-        .then(response => response.json())
-        .then(populateProgramList)
-        .catch(error => console.error("Error fetching programs:", error));
+async function fetchAndPopulatePrograms() {
+    try {
+        const response = await fetch('/api/programs');
+        const programs = await response.json();
+        populateProgramList(programs);
+    } catch (error) {
+        console.error("Error fetching programs:", error);
+    }
 }
 
 function populateProgramList(programs) {
     const programList = document.getElementById('program-list');
+    const fragment = document.createDocumentFragment();
     programs.forEach(program => {
         const listItem = createProgramListItem(program);
-        programList.appendChild(listItem);
+        fragment.appendChild(listItem);
     });
+    programList.appendChild(fragment);
 }
 
 function createProgramListItem(program) {
@@ -77,10 +84,12 @@ function loadProgramScript(program) {
 }
 
 function handleSpecialPrograms(program) {
-    if (program === 'MusicPlayer.js') {
-        createMusicPlayerWindow();
-    } else if (program === 'Settings.js') {
-        createSettingsWindow();
+    const specialPrograms = {
+        'MusicPlayer.js': createMusicPlayerWindow,
+        'Settings.js': createSettingsWindow
+    };
+    if (program in specialPrograms) {
+        specialPrograms[program]();
     }
 }
 
@@ -238,16 +247,17 @@ function loadSettings() {
     applyLanguage(language);
 }
 
-function applyLanguage(language) {
-    fetch(`/static/Languages/${language}.json`)
-        .then(response => response.json())
-        .then(translations => {
-            document.querySelectorAll('[data-translate]').forEach(el => {
-                const key = el.getAttribute('data-translate');
-                el.innerText = translations[key] || key;
-            });
-        })
-        .catch(error => console.error("Error loading language file:", error));
+async function applyLanguage(language) {
+    try {
+        const response = await fetch(`/static/Languages/${language}.json`);
+        const translations = await response.json();
+        document.querySelectorAll('[data-translate]').forEach(el => {
+            const key = el.getAttribute('data-translate');
+            el.innerText = translations[key] || key;
+        });
+    } catch (error) {
+        console.error("Error loading language file:", error);
+    }
 }
 
 // Context Menu
@@ -276,11 +286,15 @@ function createContextMenu(x, y) {
     contextMenu.style.left = `${x}px`;
     contextMenu.style.top = `${y}px`;
 
-    const settingsOption = createContextMenuItem('Settings', () => startProgram('Settings.js'));
-    const widgetOption = createContextMenuItem('Spawn Widget', spawnWidget);
+    const menuItems = [
+        { text: 'Settings', onClick: () => startProgram('Settings.js') },
+        { text: 'Spawn Widget', onClick: spawnWidget }
+    ];
 
-    contextMenu.appendChild(settingsOption);
-    contextMenu.appendChild(widgetOption);
+    menuItems.forEach(item => {
+        const menuItem = createContextMenuItem(item.text, item.onClick);
+        contextMenu.appendChild(menuItem);
+    });
 
     return contextMenu;
 }
@@ -354,6 +368,27 @@ function createWidgetContextMenu(x, y, widget) {
     return contextMenu;
 }
 
+// System Info
+function initializeSystemInfo() {
+    fetchSystemInfo();
+    setInterval(fetchSystemInfo, SYSTEM_INFO_UPDATE_INTERVAL);
+}
+
+async function fetchSystemInfo() {
+    try {
+        const response = await fetch('/system_info');
+        const data = await response.json();
+        updateSystemInfoDisplay(data);
+    } catch (error) {
+        console.error('Error fetching system info:', error);
+    }
+}
+
+function updateSystemInfoDisplay(data) {
+    document.getElementById('cpu-info').textContent = `CPU: ${data.cpu_percent}%`;
+    document.getElementById('memory-info').textContent = `Memory: ${data.memory_used.toFixed(2)} / ${data.memory_total.toFixed(2)} GB`;
+}
+
 // Utility functions
 function debounce(func, delay) {
     let timeoutId;
@@ -362,15 +397,3 @@ function debounce(func, delay) {
         timeoutId = setTimeout(() => func.apply(this, args), delay);
     };
 }
-    function fetchSystemInfo() {
-        fetch('/system_info')
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('cpu-info').textContent = `CPU: ${data.cpu_percent}%`;
-                document.getElementById('memory-info').textContent = `Memory: ${data.memory_used.toFixed(2)} / ${data.memory_total.toFixed(2)} GB`;
-            })
-            .catch(error => console.error('Error fetching system info:', error));
-    }
-
-    setInterval(fetchSystemInfo, 5000);
-    fetchSystemInfo();
